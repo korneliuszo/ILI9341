@@ -30,6 +30,8 @@
 
 	/* Function Prototypes: */
 		void SetupHardware(void);
+		void IL9341_Init(void);
+		void IL9341_SetFrame(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
 
 		void EVENT_USB_Device_Connect(void);
 		void EVENT_USB_Device_Disconnect(void);
