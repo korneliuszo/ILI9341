@@ -143,6 +143,20 @@ void EVENT_USB_Device_ControlRequest(void)
 			}
 
 			break;
+		case 2:
+			if (USB_ControlRequest.bmRequestType == (REQDIR_DEVICETOHOST | REQTYPE_VENDOR | REQREC_INTERFACE))
+			{
+
+				Endpoint_ClearSETUP();
+
+				Endpoint_Write_16_LE(240);
+				Endpoint_Write_16_LE(320);
+
+				Endpoint_ClearIN();
+				Endpoint_ClearStatusStage();
+			}
+
+			break;
 	}
 }
 
