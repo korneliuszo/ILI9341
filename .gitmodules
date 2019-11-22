@@ -1,3 +1,6 @@
 [submodule "lufa"]
 	path = lufa
 	url = https://github.com/abcminiuser/lufa
+[submodule "lcd4linux"]
+	path = lcd4linux
+	url = https://github.com/korneliuszo/lcd4linux
