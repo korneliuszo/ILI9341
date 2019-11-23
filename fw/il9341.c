@@ -1,5 +1,8 @@
 #include "il9341.h"
 #include "il9341_commands.h"
+#include "light_ws2812.h"
+
+struct cRGB led[8];
 
 int main(void)
 {
@@ -52,6 +55,15 @@ void SetupHardware(void)
 	USB_Disable();
 
 	IL9341_Init();
+
+	for (int i=0; i<8;i++)
+	{
+		led[i].r=0;
+		led[i].g=0;
+		led[i].b=0;
+	}
+
+	ws2812_setleds(led,8);
 
 	// Wait two seconds for the USB detachment to register on the host
 	Delay_MS(2000);
@@ -154,6 +166,27 @@ void EVENT_USB_Device_ControlRequest(void)
 
 				Endpoint_ClearIN();
 				Endpoint_ClearStatusStage();
+			}
+
+			break;
+		case 3:
+			if (USB_ControlRequest.bmRequestType == (REQDIR_HOSTTODEVICE | REQTYPE_VENDOR | REQREC_INTERFACE))
+			{
+
+				Endpoint_ClearSETUP();
+				while (!(Endpoint_IsOUTReceived()));
+
+				uint16_t lednr= Endpoint_Read_8();
+				uint16_t r= Endpoint_Read_8();
+				uint16_t g= Endpoint_Read_8();
+				uint16_t b= Endpoint_Read_8();
+
+				Endpoint_ClearOUT();
+				Endpoint_ClearStatusStage();
+				led[lednr].r=r;
+				led[lednr].g=g;
+				led[lednr].b=b;
+				ws2812_setleds(led,8);
 			}
 
 			break;
