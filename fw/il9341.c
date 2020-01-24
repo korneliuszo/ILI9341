@@ -1,5 +1,5 @@
 #include "il9341.h"
-#include "il9341_commands.h"
+#include "st7789_commands.h"
 #include "light_ws2812.h"
 
 struct cRGB led[8];
@@ -19,7 +19,6 @@ int main(void)
 			/* Select the data Endpoint */
 			Endpoint_SelectEndpoint(IL9341_OUT_EPADDR);
 
-			PORTF&=~0x80; //CS
 			PORTB|=0x40; //DC
 
 			/* Check if Keyboard LED Endpoint contains a packet */
@@ -36,7 +35,6 @@ int main(void)
 				Endpoint_ClearOUT();
 			}
 			while(!(SPSR & _BV(SPIF)));
-			PORTF|=0x80; //CS
 
 		}
 	}
@@ -162,7 +160,7 @@ void EVENT_USB_Device_ControlRequest(void)
 				Endpoint_ClearSETUP();
 
 				Endpoint_Write_16_LE(240);
-				Endpoint_Write_16_LE(320);
+				Endpoint_Write_16_LE(240);
 
 				Endpoint_ClearIN();
 				Endpoint_ClearStatusStage();
@@ -194,37 +192,34 @@ void EVENT_USB_Device_ControlRequest(void)
 }
 
 static const uint8_t PROGMEM initcmd[] = {
-  0xEF, 3, 0x03, 0x80, 0x02,
-  0xCF, 3, 0x00, 0xC1, 0x30,
-  0xED, 4, 0x64, 0x03, 0x12, 0x81,
-  0xE8, 3, 0x85, 0x00, 0x78,
-  0xCB, 5, 0x39, 0x2C, 0x00, 0x34, 0x02,
-  0xF7, 1, 0x20,
-  0xEA, 2, 0x00, 0x00,
-  ILI9341_PWCTR1  , 1, 0x23,             // Power control VRH[5:0]
-  ILI9341_PWCTR2  , 1, 0x10,             // Power control SAP[2:0];BT[3:0]
-  ILI9341_VMCTR1  , 2, 0x3e, 0x28,       // VCM control
-  ILI9341_VMCTR2  , 1, 0x86,             // VCM control2
-  ILI9341_MADCTL  , 1, 0x48,             // Memory Access Control
-  ILI9341_VSCRSADD, 1, 0x00,             // Vertical scroll zero
-  ILI9341_PIXFMT  , 1, 0x55,
-  ILI9341_FRMCTR1 , 2, 0x00, 0x18,
-  ILI9341_DFUNCTR , 3, 0x08, 0x82, 0x27, // Display Function Control
-  0xF2, 1, 0x00,                         // 3Gamma Function Disable
-  ILI9341_GAMMASET , 1, 0x01,             // Gamma curve selected
-  ILI9341_GMCTRP1 , 15, 0x0F, 0x31, 0x2B, 0x0C, 0x0E, 0x08, // Set Gamma
-    0x4E, 0xF1, 0x37, 0x07, 0x10, 0x03, 0x0E, 0x09, 0x00,
-  ILI9341_GMCTRN1 , 15, 0x00, 0x0E, 0x14, 0x03, 0x11, 0x07, // Set Gamma
-    0x31, 0xC1, 0x48, 0x08, 0x0F, 0x0C, 0x31, 0x36, 0x0F,
-  ILI9341_SLPOUT  , 0x80,                // Exit Sleep
-  ILI9341_DISPON  , 0x80,                // Display on
-  0x00                                   // End of list
-};
+    10,                       				// 9 commands in list:
+    ST7789_SWRESET,   ST_CMD_DELAY,  		// 1: Software reset, no args, w/delay
+      150,                     				// 150 ms delay
+    ST7789_SLPOUT ,   ST_CMD_DELAY,  		// 2: Out of sleep mode, no args, w/delay
+      255,                    				// 255 = 500 ms delay
+    ST7789_COLMOD , 1+ST_CMD_DELAY,  		// 3: Set color mode, 1 arg + delay:
+      0x55,                   				// 16-bit color
+      10,                     				// 10 ms delay
+    ST7789_MADCTL , 1,  					// 4: Memory access ctrl (directions), 1 arg:
+      0x00,                   				// Row addr/col addr, bottom to top refresh
+    ST7789_CASET  , 4,  					// 5: Column addr set, 4 args, no delay:
+      0x00, ST7789_240x240_XSTART,          // XSTART = 0
+	  (ST7789_TFTWIDTH+ST7789_240x240_XSTART) >> 8,
+	  (ST7789_TFTWIDTH+ST7789_240x240_XSTART) & 0xFF,   // XEND = 240
+    ST7789_RASET  , 4,  					// 6: Row addr set, 4 args, no delay:
+      0x00, ST7789_240x240_YSTART,          // YSTART = 0
+      (ST7789_TFTHEIGHT+ST7789_240x240_YSTART) >> 8,
+	  (ST7789_TFTHEIGHT+ST7789_240x240_YSTART) & 0xFF,	// YEND = 240
+    ST7789_INVON ,   ST_CMD_DELAY,  		// 7: Inversion ON
+      10,
+    ST7789_NORON  ,   ST_CMD_DELAY,  		// 8: Normal display on, no args, w/delay
+      10,                     				// 10 ms delay
+    ST7789_DISPON ,   ST_CMD_DELAY,  		// 9: Main screen turn on, no args, w/delay
+    255 };                                  // 255 = 500 ms delay
 
 
 void sendCommand(uint8_t command, uint8_t *args, size_t len)
 {
-	PORTF&=~0x80; //CS
 	PORTB&=~0x40; //DC
 	while(!(SPSR & _BV(SPIF)));
 	SPDR = command;
@@ -236,7 +231,6 @@ void sendCommand(uint8_t command, uint8_t *args, size_t len)
 		SPDR = args[i];
 	}
 	while(!(SPSR & _BV(SPIF)));
-	PORTF|=0x80; //CS
 }
 
 void put16BE(uint16_t data,uint8_t *buff)
@@ -255,53 +249,57 @@ void IL9341_SetFrame(uint16_t x, uint16_t y, uint16_t w, uint16_t h)
 	uint8_t buff[4];
 	put16BE(x,&buff[0]);
 	put16BE(x+w-1,&buff[2]);
-	sendCommand(ILI9341_CASET,buff,4);
+	sendCommand(ST7789_CASET,buff,4);
 	put16BE(y,&buff[0]);
 	put16BE(y+h-1,&buff[2]);
-	sendCommand(ILI9341_PASET,buff,4);
-	sendCommand(ILI9341_RAMWR,NULL,0);
+	sendCommand(ST7789_RASET,buff,4);
+	sendCommand(ST7789_RAMWR,NULL,0);
 }
 
 void IL9341_Init(void)
 {
-	SPCR=(0<<CPOL)|(0<<CPHA)|(1<<SPE)|(0<<DORD)|(0<<SPR1)|(0<<SPR0)|(1<<MSTR)|(0<<SPIE);
+	SPCR=(1<<CPOL)|(0<<CPHA)|(1<<SPE)|(0<<DORD)|(0<<SPR1)|(0<<SPR0)|(1<<MSTR)|(0<<SPIE);
 	SPSR=(1<<SPI2X);
 	DDRB|=0x06;
 	PORTB|=0x40;
 	DDRB|=0x40; //DC
 	PORTF|=0x80;
-	DDRF|=0x80; //CS
 
 	SPDR=0x00; // dummy write so SPIF is set
 	while(!(SPSR & _BV(SPIF)));
 
-	sendCommand(ILI9341_SWRESET, NULL, 0); // Engage software reset
-	Delay_MS(150);
-
-	uint8_t        cmd, x, numArgs;
+	uint8_t        cmd;
 	uint8_t        commandargs[10];
 	const uint8_t *addr = initcmd;
-	while((cmd = pgm_read_byte(addr++)) > 0) {
-		x = pgm_read_byte(addr++);
-		numArgs = x & 0x7F;
-		for(int i=0;i<numArgs;i++)
+	uint8_t  numCommands, numArgs;
+  	uint16_t ms;
+	numCommands = pgm_read_byte(addr++);   // Number of commands to follow
+	while(numCommands--) {                 // For each command...
+    	cmd=       (pgm_read_byte(addr++)); //   Read, issue command
+    	numArgs  = pgm_read_byte(addr++);    //   Number of args to follow
+    	ms       = numArgs & ST_CMD_DELAY;   //   If hibit set, delay follows args
+    	numArgs &= ~ST_CMD_DELAY;            //   Mask out delay bit
+    	for(int i=0;i<numArgs;i++)
 			commandargs[i]=pgm_read_byte(addr++);
 		sendCommand(cmd, commandargs, numArgs);
-		if(x & 0x80) Delay_MS(150);
-	}
 
-	IL9341_SetFrame(0,0,240,320);
+    	if(ms) {
+     		ms = pgm_read_byte(addr++); // Read post-command delay time (ms)
+      		if(ms == 255) ms = 500;     // If 255, delay for 500 ms
+      		Delay_MS(ms);
+    	}
+  }
 
-	PORTF&=~0x80; //CS
+	IL9341_SetFrame(0,0,240,240);
+
 	PORTB|=0x40; //DC
 
-	for(uint16_t y=0;y<320;y++)
+	for(uint16_t y=0;y<240;y++)
 		for(uint8_t x=0;x<240;x++)
 		{
 			sendData8(0xff); //R
 			sendData8(0xe0); //G
 		}
 	while(!(SPSR & _BV(SPIF)));
-	PORTF|=0x80; //CS
 }
 
